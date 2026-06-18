@@ -23,3 +23,13 @@ def create_user(
     db.refresh(user)
 
     return user
+
+def get_user_by_username(
+    db: Session,
+    username: str
+):
+    return (
+        db.query(User)
+        .filter(User.username == username)
+        .first()
+    )
