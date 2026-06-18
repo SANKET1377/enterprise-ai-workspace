@@ -25,7 +25,9 @@ from app.security.auth import (
 from app.security.jwt_handler import (
     create_access_token
 )
-
+from app.security.dependencies import (
+    get_current_user
+)
 app = FastAPI(
     title="Enterprise AI Workspace",
     version="1.0.0"
@@ -115,3 +117,20 @@ def login(
         "token_type": "bearer"
     }
 
+@app.get("/me")
+def get_me(
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    user = get_user_by_username(
+        db,
+        current_user
+    )
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "is_active": user.is_active
+    }
