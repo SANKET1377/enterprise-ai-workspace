@@ -28,6 +28,15 @@ from app.security.jwt_handler import (
 from app.security.dependencies import (
     get_current_user
 )
+from app.schemas.chat import (
+    ChatRequest,
+    ChatResponse
+)
+
+from app.services.gemini_service import (
+    ask_gemini
+)
+
 app = FastAPI(
     title="Enterprise AI Workspace",
     version="1.0.0"
@@ -133,4 +142,20 @@ def get_me(
         "username": user.username,
         "email": user.email,
         "is_active": user.is_active
+    }
+    
+@app.post(
+    "/chat",
+    response_model=ChatResponse
+)
+def chat(
+    request: ChatRequest
+):
+
+    answer = ask_gemini(
+        request.message
+    )
+
+    return {
+        "response": answer
     }
