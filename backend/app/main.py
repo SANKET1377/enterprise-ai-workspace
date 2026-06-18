@@ -3,7 +3,17 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
+from app.security.dependencies import (
+    get_current_user
+)
 
+from app.database.chat_crud import (
+    save_chat
+)
+
+from app.database.crud import (
+    get_user_by_username
+)
 from app.database.crud import (
     get_user_by_email,
     get_user_by_username,
@@ -149,11 +159,25 @@ def get_me(
     response_model=ChatResponse
 )
 def chat(
-    request: ChatRequest
+    request: ChatRequest,
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
+
+    user = get_user_by_username(
+        db,
+        current_user
+    )
 
     answer = ask_gemini(
         request.message
+    )
+
+    save_chat(
+        db=db,
+        user_id=user.id,
+        message=request.message,
+        response=answer
     )
 
     return {
