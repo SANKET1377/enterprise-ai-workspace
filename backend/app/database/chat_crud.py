@@ -21,3 +21,18 @@ def save_chat(
     db.refresh(chat)
 
     return chat
+
+def get_user_chats(
+    db: Session,
+    user_id: int
+):
+    return (
+        db.query(ChatMessage)
+        .filter(
+            ChatMessage.user_id == user_id
+        )
+        .order_by(
+            ChatMessage.created_at.desc()
+        )
+        .all()
+    )

@@ -46,6 +46,18 @@ from app.schemas.chat import (
 from app.services.gemini_service import (
     ask_gemini
 )
+from app.database.chat_crud import (
+    save_chat,
+    get_user_chats
+)
+
+from app.schemas.chat_history import (
+    ChatHistoryResponse
+)
+
+from typing import List
+
+
 
 app = FastAPI(
     title="Enterprise AI Workspace",
@@ -183,3 +195,22 @@ def chat(
     return {
         "response": answer
     }
+    
+@app.get(
+    "/chat-history",
+    response_model=List[ChatHistoryResponse]
+)
+def chat_history(
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    user = get_user_by_username(
+        db,
+        current_user
+    )
+
+    return get_user_chats(
+        db,
+        user.id
+    )
