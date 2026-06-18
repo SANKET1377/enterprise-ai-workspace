@@ -6,7 +6,14 @@ from app.database.connection import get_db
 from app.security.dependencies import (
     get_current_user
 )
+from fastapi import UploadFile, File
 
+from app.database.document_crud import (
+    save_document
+)
+
+import shutil
+import os
 from app.database.chat_crud import (
     save_chat
 )
@@ -63,7 +70,30 @@ app = FastAPI(
     title="Enterprise AI Workspace",
     version="1.0.0"
 )
+from app.database.document_crud import (
+    save_document,
+    get_latest_document
+)
 
+from app.schemas.document_chat import (
+    DocumentQuestion
+)
+
+from app.rag.pdf_loader import (
+    extract_text_from_pdf
+)
+
+from app.rag.chunker import (
+    chunk_text
+)
+
+from app.rag.vector_store import (
+    create_vector_store
+)
+
+from app.rag.rag_service import (
+    build_rag_prompt
+)
 @app.get("/")
 def home():
     return {
@@ -214,3 +244,94 @@ def chat_history(
         db,
         user.id
     )
+    
+@app.post("/upload-pdf")
+def upload_pdf(
+    file: UploadFile = File(...),
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    user = get_user_by_username(
+        db,
+        current_user
+    )
+
+    os.makedirs(
+        "uploads",
+        exist_ok=True
+    )
+
+    file_path = f"uploads/{file.filename}"
+
+    with open(
+        file_path,
+        "wb"
+    ) as buffer:
+
+        shutil.copyfileobj(
+            file.file,
+            buffer
+        )
+
+    save_document(
+        db=db,
+        user_id=user.id,
+        filename=file.filename,
+        file_path=file_path
+    )
+
+    return {
+        "message": "PDF uploaded successfully",
+        "filename": file.filename
+    }
+    
+@app.post("/ask-document")
+def ask_document(
+    request: DocumentQuestion,
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    user = get_user_by_username(
+        db,
+        current_user
+    )
+
+    document = get_latest_document(
+        db,
+        user.id
+    )
+
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="No document found"
+        )
+
+    text = extract_text_from_pdf(
+        document.file_path
+    )
+
+    chunks = chunk_text(
+        text,
+        chunk_size=500
+    )
+
+    index, embeddings = create_vector_store(
+        chunks
+    )
+
+    prompt = build_rag_prompt(
+        request.question,
+        index,
+        chunks
+    )
+
+    answer = ask_gemini(
+        prompt
+    )
+
+    return {
+        "answer": answer
+    }
