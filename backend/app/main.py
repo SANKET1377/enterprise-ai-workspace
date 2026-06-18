@@ -94,6 +94,12 @@ from app.rag.vector_store import (
 from app.rag.rag_service import (
     build_rag_prompt
 )
+
+from app.database.document_crud import (
+    save_document,
+    get_latest_document,
+    get_user_documents
+)
 @app.get("/")
 def home():
     return {
@@ -298,34 +304,42 @@ def ask_document(
         current_user
     )
 
-    document = get_latest_document(
+    documents = get_user_documents(
         db,
         user.id
     )
 
-    if not document:
+    if not documents:
         raise HTTPException(
             status_code=404,
-            detail="No document found"
+            detail="No documents found"
         )
 
-    text = extract_text_from_pdf(
-        document.file_path
-    )
+    all_chunks = []
 
-    chunks = chunk_text(
-        text,
-        chunk_size=500
-    )
+    for document in documents:
+
+        text = extract_text_from_pdf(
+            document.file_path
+        )
+
+        chunks = chunk_text(
+            text,
+            chunk_size=500
+        )
+
+        all_chunks.extend(
+            chunks
+        )
 
     index, embeddings = create_vector_store(
-        chunks
+        all_chunks
     )
 
     prompt = build_rag_prompt(
         request.question,
         index,
-        chunks
+        all_chunks
     )
 
     answer = ask_gemini(
@@ -333,5 +347,6 @@ def ask_document(
     )
 
     return {
+        "documents_searched": len(documents),
         "answer": answer
     }

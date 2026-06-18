@@ -33,3 +33,15 @@ def get_latest_document(
         )
         .first()
     )
+    
+def get_user_documents(
+    db,
+    user_id
+):
+    return (
+        db.query(Document)
+        .filter(
+            Document.user_id == user_id
+        )
+        .all()
+    )
