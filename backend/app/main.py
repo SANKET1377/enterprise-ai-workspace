@@ -88,7 +88,8 @@ from app.rag.chunker import (
 )
 
 from app.rag.vector_store import (
-    create_vector_store
+    create_and_save_index,
+    load_index
 )
 
 from app.rag.rag_service import (
@@ -279,6 +280,17 @@ def upload_pdf(
             file.file,
             buffer
         )
+    text = extract_text_from_pdf(
+        file_path
+    )
+    chunks = chunk_text(
+        text,
+        chunk_size=500
+    )
+    create_and_save_index(
+        chunks,
+        user.id
+    )    
 
     save_document(
         db=db,
@@ -291,7 +303,6 @@ def upload_pdf(
         "message": "PDF uploaded successfully",
         "filename": file.filename
     }
-    
 @app.post("/ask-document")
 def ask_document(
     request: DocumentQuestion,
@@ -304,42 +315,23 @@ def ask_document(
         current_user
     )
 
-    documents = get_user_documents(
-        db,
-        user.id
-    )
+    try:
 
-    if not documents:
+        index, chunks = load_index(
+            user.id
+        )
+
+    except Exception:
+
         raise HTTPException(
             status_code=404,
-            detail="No documents found"
+            detail="No vector index found. Upload a PDF first."
         )
-
-    all_chunks = []
-
-    for document in documents:
-
-        text = extract_text_from_pdf(
-            document.file_path
-        )
-
-        chunks = chunk_text(
-            text,
-            chunk_size=500
-        )
-
-        all_chunks.extend(
-            chunks
-        )
-
-    index, embeddings = create_vector_store(
-        all_chunks
-    )
 
     prompt = build_rag_prompt(
         request.question,
         index,
-        all_chunks
+        chunks
     )
 
     answer = ask_gemini(
@@ -347,6 +339,5 @@ def ask_document(
     )
 
     return {
-        "documents_searched": len(documents),
         "answer": answer
     }
