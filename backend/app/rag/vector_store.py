@@ -3,21 +3,32 @@ import pickle
 import numpy as np
 import os
 
-from sentence_transformers import (
-    SentenceTransformer
-)
+model = None
 
-model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
+
+def get_model():
+
+    global model
+
+    if model is None:
+
+        from sentence_transformers import (
+            SentenceTransformer
+        )
+
+        model = SentenceTransformer(
+            "all-MiniLM-L6-v2"
+        )
+
+    return model
 
 
 def create_and_save_index(
     chunks,
-    user_id
+    document_id
 ):
 
-    embeddings = model.encode(
+    embeddings = get_model().encode(
         chunks
     )
 
@@ -33,18 +44,27 @@ def create_and_save_index(
             dtype="float32"
         )
     )
+
     os.makedirs(
-    "vector_store",
-    exist_ok=True
-)
+        "vector_store",
+        exist_ok=True
+    )
+
+    index_path = (
+        f"vector_store/doc_{document_id}.index"
+    )
+
+    chunks_path = (
+        f"vector_store/doc_{document_id}_chunks.pkl"
+    )
 
     faiss.write_index(
         index,
-        f"vector_store/{user_id}.index"
+        index_path
     )
 
     with open(
-        f"vector_store/{user_id}_chunks.pkl",
+        chunks_path,
         "wb"
     ) as f:
 
@@ -53,17 +73,19 @@ def create_and_save_index(
             f
         )
 
+    return index_path
+
 
 def load_index(
-    user_id
+    document_id
 ):
 
     index = faiss.read_index(
-        f"vector_store/{user_id}.index"
+        f"vector_store/doc_{document_id}.index"
     )
 
     with open(
-        f"vector_store/{user_id}_chunks.pkl",
+        f"vector_store/doc_{document_id}_chunks.pkl",
         "rb"
     ) as f:
 

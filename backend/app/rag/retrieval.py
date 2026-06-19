@@ -1,7 +1,7 @@
 import numpy as np
 
 from app.rag.vector_store import (
-    model
+    get_model
 )
 
 
@@ -12,7 +12,7 @@ def search_chunks(
     k=3
 ):
 
-    query_embedding = model.encode(
+    query_embedding = get_model().encode(
         [query]
     )
 
@@ -27,6 +27,7 @@ def search_chunks(
     results = []
 
     for idx in indices[0]:
+
         results.append(
             chunks[idx]
         )

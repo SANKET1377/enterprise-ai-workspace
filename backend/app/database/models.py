@@ -82,6 +82,10 @@ class Document(Base):
         String
     )
 
+    index_path = Column(
+        String
+    )
+
     created_at = Column(
         DateTime,
         default=datetime.utcnow

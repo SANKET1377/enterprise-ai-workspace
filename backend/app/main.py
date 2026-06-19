@@ -26,6 +26,11 @@ from app.database.crud import (
     get_user_by_username,
     create_user
 )
+from app.database.crud import (
+    save_document,
+    update_document_index,
+    get_user_by_username
+)
 
 from app.schemas.user import (
     UserCreate,
@@ -100,6 +105,13 @@ from app.database.document_crud import (
     save_document,
     get_latest_document,
     get_user_documents
+)
+from app.database.crud import (
+    get_user_documents
+)
+
+from app.rag.retrieval import (
+    search_chunks
 )
 @app.get("/")
 def home():
@@ -269,7 +281,9 @@ def upload_pdf(
         exist_ok=True
     )
 
-    file_path = f"uploads/{file.filename}"
+    file_path = (
+        f"uploads/{file.filename}"
+    )
 
     with open(
         file_path,
@@ -280,27 +294,37 @@ def upload_pdf(
             file.file,
             buffer
         )
-    text = extract_text_from_pdf(
-        file_path
-    )
-    chunks = chunk_text(
-        text,
-        chunk_size=500
-    )
-    create_and_save_index(
-        chunks,
-        user.id
-    )    
 
-    save_document(
+    document = save_document(
         db=db,
         user_id=user.id,
         filename=file.filename,
         file_path=file_path
     )
 
+    text = extract_text_from_pdf(
+        file_path
+    )
+
+    chunks = chunk_text(
+        text,
+        chunk_size=500
+    )
+
+    index_path = create_and_save_index(
+        chunks,
+        document.id
+    )
+
+    update_document_index(
+        db,
+        document.id,
+        index_path
+    )
+
     return {
         "message": "PDF uploaded successfully",
+        "document_id": document.id,
         "filename": file.filename
     }
 @app.post("/ask-document")
@@ -315,29 +339,69 @@ def ask_document(
         current_user
     )
 
-    try:
+    documents = get_user_documents(
+        db,
+        user.id
+    )
 
-        index, chunks = load_index(
-            user.id
-        )
-
-    except Exception:
+    if not documents:
 
         raise HTTPException(
             status_code=404,
-            detail="No vector index found. Upload a PDF first."
+            detail="No documents found"
         )
 
-    prompt = build_rag_prompt(
-        request.question,
-        index,
-        chunks
+    all_relevant_chunks = []
+
+    for document in documents:
+
+        try:
+
+            index, chunks = load_index(
+                document.id
+            )
+
+            results = search_chunks(
+                request.question,
+                index,
+                chunks,
+                k=2
+            )
+
+            all_relevant_chunks.extend(
+                results
+            )
+
+        except Exception:
+
+            continue
+
+    if not all_relevant_chunks:
+
+        raise HTTPException(
+            status_code=404,
+            detail="No searchable indexes found"
+        )
+
+    context = "\n\n".join(
+        all_relevant_chunks
     )
+
+    prompt = f"""
+Answer the question using the context below.
+
+Context:
+{context}
+
+Question:
+{request.question}
+"""
 
     answer = ask_gemini(
         prompt
     )
 
     return {
+        "documents_searched": len(documents),
         "answer": answer
     }
